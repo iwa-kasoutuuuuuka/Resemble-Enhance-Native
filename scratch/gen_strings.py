@@ -28,64 +28,87 @@ data = {
     "copy": "ログをコピー",
     "log_loaded": "[System] 音声を読み込みました。",
     "log_err_load": "[Error] 音声ファイルを先に読み込んでください。",
-    "log_saved": "[System] ファイルを保存しました。"
+    "log_saved": "[System] ファイルを保存しました。",
+    # New keys for Ultimate version
+    "tab_single": "単体ファイル",
+    "tab_batch": "一括処理",
+    "gpu_accel": "GPU 加速 (DirectML)",
+    "add_queue": "キューに追加",
+    "clear_queue": "キューをクリア",
+    "start_batch": "一括処理開始",
+    "device_cpu": "デバイス: CPU",
+    "device_gpu": "デバイス: GPU",
+    "sec_batch": "一括処理リスト"
 }
 
-print("#pragma once")
-print("#include <string>")
-print("#include <windows.h>")
-print("#include <vector>")
-print("")
-print("enum class Language { EN, JP };")
-print("")
-print("struct UIStrings {")
-print("    static std::string toUTF8(const std::wstring& wstr) {")
-print("        if (wstr.empty()) return \"\";")
-print("        int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);")
-print("        std::vector<char> buffer(size);")
-print("        WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, buffer.data(), size, NULL, NULL);")
-print("        return std::string(buffer.data());")
-print("    }")
-print("")
-print("    static std::string get(const std::string& id, Language lang) {")
-print("        bool is_jp = (lang == Language::JP);")
-print("")
+en_map = {
+    "app_title": "RESEMBLE ENHANCE - PROFESSIONAL DASHBOARD",
+    "status_proc": "PROCESSING...",
+    "status_ready": "SYSTEM READY",
+    "sec_1": "1. Input Audio Source",
+    "browse": "BROWSE...",
+    "tip_dd": "(Tip: You can drag and drop a .wav file here)",
+    "sec_2": "2. AI Parameters & Configuration",
+    "denoise": "Denoise Strength",
+    "steps": "Solver Steps",
+    "tau": "Temperature (tau)",
+    "load": "LOAD AUDIO",
+    "enhance": "ENHANCE AUDIO",
+    "sec_3": "3. Audio Analysis & Output",
+    "wave_orig": "Original Waveform",
+    "wave_enh": "Enhanced Waveform",
+    "save": "SAVE (.WAV)",
+    "play_enh": "PLAY ENHANCED",
+    "play_orig": "PLAY ORIGINAL",
+    "stop": "STOP",
+    "sec_4": "4. System Logs",
+    "copy": "COPY LOGS",
+    "log_loaded": "[System] Audio loaded.",
+    "log_err_load": "[Error] Load audio first.",
+    "log_saved": "[System] File saved.",
+    "tab_single": "Single File",
+    "tab_batch": "Batch Mode",
+    "gpu_accel": "GPU Acceleration (DirectML)",
+    "add_queue": "Add to Queue",
+    "clear_queue": "Clear Queue",
+    "start_batch": "Start Batch",
+    "device_cpu": "Device: CPU",
+    "device_gpu": "Device: GPU",
+    "sec_batch": "Batch List"
+}
+
+output = []
+output.append("#pragma once")
+output.append("#include <string>")
+output.append("#include <windows.h>")
+output.append("#include <vector>")
+output.append("")
+output.append("enum class Language { EN, JP };")
+output.append("")
+output.append("struct UIStrings {")
+output.append("    static std::string toUTF8(const std::wstring& wstr) {")
+output.append("        if (wstr.empty()) return \"\";")
+output.append("        int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);")
+output.append("        std::vector<char> buffer(size);")
+output.append("        WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, buffer.data(), size, NULL, NULL);")
+output.append("        return std::string(buffer.data());")
+output.append("    }")
+output.append("")
+output.append("    static std::string get(const std::string& id, Language lang) {")
+output.append("        bool is_jp = (lang == Language::JP);")
+output.append("")
+
 for key, val in data.items():
     if key == "lang_btn_jp": continue
-    en_val = val # Placeholder, I'll fix manually
-    # Manual EN values for specific keys
-    en_map = {
-        "app_title": "RESEMBLE ENHANCE - PROFESSIONAL DASHBOARD",
-        "status_proc": "PROCESSING...",
-        "status_ready": "SYSTEM READY",
-        "sec_1": "1. Input Audio Source",
-        "browse": "BROWSE...",
-        "tip_dd": "(Tip: You can drag and drop a .wav file here)",
-        "sec_2": "2. AI Parameters & Configuration",
-        "denoise": "Denoise Strength",
-        "steps": "Solver Steps",
-        "tau": "Temperature (tau)",
-        "load": "LOAD AUDIO",
-        "enhance": "ENHANCE AUDIO",
-        "sec_3": "3. Audio Analysis & Output",
-        "wave_orig": "Original Waveform",
-        "wave_enh": "Enhanced Waveform",
-        "save": "SAVE (.WAV)",
-        "play_enh": "PLAY ENHANCED",
-        "play_orig": "PLAY ORIGINAL",
-        "stop": "STOP",
-        "sec_4": "4. System Logs",
-        "copy": "COPY LOGS",
-        "log_loaded": "[System] Audio loaded.",
-        "log_err_load": "[Error] Load audio first.",
-        "log_saved": "[System] File saved."
-    }
     en_val = en_map.get(key, val)
     jp_ucn = to_ucn(val)
-    print(f"        if (id == \"{key}\") return is_jp ? toUTF8(L\"{jp_ucn}\") : \"{en_val}\";")
+    output.append(f"        if (id == \"{key}\") return is_jp ? toUTF8(L\"{jp_ucn}\") : \"{en_val}\";")
 
-print("        if (id == \"lang_btn\") return is_jp ? \"English\" : toUTF8(L\"" + to_ucn("日本語") + "\");")
-print("")
-print("        return \"???\";")
-print("    }")
-print("};")
+output.append("        if (id == \"lang_btn\") return is_jp ? \"English\" : toUTF8(L\"" + to_ucn("日本語") + "\");")
+output.append("")
+output.append("        return \"???\";")
+output.append("    }")
+output.append("};")
+
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("\n".join(output))

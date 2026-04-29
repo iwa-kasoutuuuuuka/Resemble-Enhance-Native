@@ -112,7 +112,18 @@ bool AIEnhancer::loadModels(const std::string& models_dir, bool use_gpu) {
         if (std::filesystem::exists(vocoder_path)) {
             pimpl->log("Loading vocoder from " + vocoder_path + " (this may take a moment)...");
             pimpl->vocoder = torch::jit::load(vocoder_path);
-            if (use_gpu) pimpl->vocoder.to(torch::kCUDA);
+            if (use_gpu) {
+                try {
+                    if (torch::cuda::is_available()) {
+                        pimpl->vocoder.to(torch::kCUDA);
+                        pimpl->log("[System] Vocoder moved to CUDA GPU.");
+                    } else {
+                        pimpl->log("[System] CUDA not available for Vocoder, staying on CPU.");
+                    }
+                } catch (...) {
+                    pimpl->log("[System] Failed to move Vocoder to GPU, staying on CPU.");
+                }
+            }
             pimpl->vocoder.eval();
             pimpl->vocoder_loaded = true;
             pimpl->log("Vocoder loaded OK");

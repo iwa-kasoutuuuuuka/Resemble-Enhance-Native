@@ -7,6 +7,7 @@
 #include "GUIManager.hpp"
 #include "AIEnhancer.hpp"
 #include "AudioProcessor.hpp"
+#include "DSPModule.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <backends/imgui_impl_glfw.h>
@@ -156,17 +157,16 @@ bool GUIManager::init() {
     }
 
     if (found) {
+        models_dir = found_path.string(); // Save for reload
         addLog("[System] Found models at: " + fs::absolute(found_path).string());
         pimpl->enhancer.setLogCallback([this](const std::string& msg) { addLog(msg); });
-        if (pimpl->enhancer.loadModels(found_path.string(), false)) {
-            addLog("[System] AI Models loaded successfully.");
+        if (pimpl->enhancer.loadModels(models_dir, use_gpu)) {
+            addLog(use_gpu ? "[System] AI Models loaded OK (GPU: DirectML)" : "[System] AI Models loaded OK (CPU Mode)");
         } else {
-            addLog("[Error] Models folder found, but loading failed. Check console.");
+            addLog("[Error] Models folder found, but loading failed.");
         }
     } else {
-        addLog("[Error] Could not find 'models_onnx' in current or parent directories.");
-        addLog("Checked up to: " + search_ptr.string());
-        addLog("Please ensure 'models_onnx' is in the project root.");
+        addLog("[Error] Could not find 'models_onnx'.");
     }
     return true;
 }
@@ -190,7 +190,7 @@ void GUIManager::run() {
 }
 
 void GUIManager::renderWaveform(const char* label, const std::vector<float>& data, ImVec4 color) {
-    if (ImPlot::BeginPlot(label, ImVec2(-1, 180), ImPlotFlags_NoMenus)) {
+    if (ImPlot::BeginPlot(label, ImVec2(-1, 140), ImPlotFlags_NoMenus)) {
         ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
         ImPlot::SetupAxisLimits(ImAxis_Y1, -1.1, 1.1, ImGuiCond_Always);
         ImPlot::SetNextLineStyle(color);
@@ -203,171 +203,182 @@ void GUIManager::renderWaveform(const char* label, const std::vector<float>& dat
     }
 }
 
+void GUIManager::renderSpectrogram(const char* label, const std::vector<float>& data, int w, int h) {
+    if (w <= 0 || h <= 0 || data.empty()) return;
+    if (ImPlot::BeginPlot(label, ImVec2(-1, 180), ImPlotFlags_NoMenus)) {
+        ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+        ImPlot::PlotHeatmap("Spec", data.data(), h, w, 0.0f, 1.0f, nullptr, ImPlotPoint(0,0), ImPlotPoint(w,h));
+        ImPlot::EndPlot();
+    }
+}
+
 void GUIManager::renderUI() {
     ImGui::SetNextWindowPos(ImVec2(0,0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
     ImGui::Begin("Dashboard", nullptr, ImGuiWindowFlags_NoDecoration);
 
-    // Language Toggle in Top-Right
+    // Language Toggle
     ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth() - 150, 5));
     if (ImGui::Button(UIStrings::get("lang_btn", current_lang).c_str(), ImVec2(140, 20))) {
         current_lang = (current_lang == Language::JP) ? Language::EN : Language::JP;
     }
 
-    // Title and System Status
+    // Title and Hardware Status
     ImGui::SetCursorPos(ImVec2(10, 5));
     ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), UIStrings::get("app_title", current_lang).c_str());
     
-    ImGui::SameLine(ImGui::GetWindowWidth() - 280);
+    ImGui::SameLine(ImGui::GetWindowWidth() - 350);
+    if (use_gpu) {
+        ImGui::TextColored(ImVec4(0.4f, 1, 0.4f, 1), UIStrings::get("device_gpu", current_lang).c_str());
+    } else {
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), UIStrings::get("device_cpu", current_lang).c_str());
+    }
+
+    ImGui::SameLine(ImGui::GetWindowWidth() - 250);
     if (is_processing) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), UIStrings::get("status_proc", current_lang).c_str());
     } else {
         ImGui::TextColored(ImVec4(0, 1, 0.5f, 1), UIStrings::get("status_ready", current_lang).c_str());
     }
+    
     ImGui::Separator();
 
-    // 1. File Input Section
-    ImGui::TextUnformatted(UIStrings::get("sec_1", current_lang).c_str());
-    ImGui::SetNextItemWidth(-130);
-    ImGui::InputText("##path", input_path, sizeof(input_path));
-    ImGui::SameLine();
-    if (ImGui::Button(UIStrings::get("browse", current_lang).c_str(), ImVec2(120, 25))) {
-        std::string selected = openFileDialog();
-        if (!selected.empty()) strncpy(input_path, selected.c_str(), sizeof(input_path) - 1);
-    }
-    ImGui::TextDisabled(UIStrings::get("tip_dd", current_lang).c_str());
-
-    // 2. Settings Section
-    ImGui::Spacing();
-    ImGui::TextUnformatted(UIStrings::get("sec_2", current_lang).c_str());
-    ImGui::BeginChild("SettingsFrame", ImVec2(0, 130), true);
-    
-    ImGui::Columns(2, "settings_cols", false);
-    ImGui::SetColumnWidth(0, 300);
-    
-    ImGui::SliderFloat(UIStrings::get("denoise", current_lang).c_str(), &denoise_strength, 0.0f, 1.0f, "%.2f");
-    static int solver_steps = 32;
-    static float tau = 0.5f;
-    ImGui::SliderInt(UIStrings::get("steps", current_lang).c_str(), &solver_steps, 16, 128);
-    ImGui::SliderFloat(UIStrings::get("tau", current_lang).c_str(), &tau, 0.0f, 1.0f, "%.2f");
-    
-    ImGui::NextColumn();
-    
-    if (ImGui::Button(UIStrings::get("load", current_lang).c_str(), ImVec2(180, 40))) {
-        std::vector<float> tmp;
-        if (pimpl->processor.loadAudio(input_path, 44100, tmp)) {
-            std::lock_guard<std::mutex> lock(data_mutex);
-            original_waveform = std::move(tmp);
-            addLog(UIStrings::get("log_loaded", current_lang));
-        }
-    }
-    if (ImGui::Button(UIStrings::get("enhance", current_lang).c_str(), ImVec2(180, 40)) && !is_processing) {
-        if (!original_waveform.empty()) {
-            pimpl->enhancer.setParameters(solver_steps, tau);
-            processAudio();
-        } else {
-            addLog(UIStrings::get("log_err_load", current_lang));
-        }
-    }
-
-    ImGui::Columns(1);
-    ImGui::EndChild();
-
-    // 3. Visualization & Output Section
-    ImGui::Spacing();
-    ImGui::TextUnformatted(UIStrings::get("sec_3", current_lang).c_str());
-    
-    if (is_processing) {
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
-        ImGui::ProgressBar(progress, ImVec2(-1, 20));
-        ImGui::PopStyleColor();
-    }
-
-    // Waveforms
-    if (!original_waveform.empty()) {
-        renderWaveform(UIStrings::get("wave_orig", current_lang).c_str(), original_waveform, ImVec4(0.4f, 0.6f, 1.0f, 1.0f));
-    }
-    
-    if (!enhanced_waveform.empty()) {
-        renderWaveform(UIStrings::get("wave_enh", current_lang).c_str(), enhanced_waveform, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
-    }
-
-    // Buttons Row
-    ImGui::Spacing();
-    bool has_enhanced = !enhanced_waveform.empty();
-    if (has_enhanced) {
-        if (ImGui::Button(UIStrings::get("save", current_lang).c_str(), ImVec2(120, 35))) {
-            char filename[MAX_PATH] = "enhanced_output.wav";
-            OPENFILENAMEA ofn;
-            ZeroMemory(&ofn, sizeof(ofn));
-            ofn.lStructSize = sizeof(ofn);
-            ofn.lpstrFile = filename;
-            ofn.nMaxFile = MAX_PATH;
-            ofn.lpstrFilter = "WAV Files\0*.wav\0";
-            ofn.Flags = OFN_OVERWRITEPROMPT;
-            if (GetSaveFileNameA(&ofn)) {
-                std::lock_guard<std::mutex> lock(data_mutex);
-                pimpl->processor.saveAudio(filename, enhanced_waveform, 44100, "wav");
-                addLog(UIStrings::get("log_saved", current_lang));
+    // Main Content with Tabs
+    if (ImGui::BeginTabBar("MainTabs")) {
+        // TAB 1: SINGLE FILE
+        if (ImGui::BeginTabItem(UIStrings::get("tab_single", current_lang).c_str())) {
+            is_batch_mode = false;
+            
+            ImGui::Spacing();
+            ImGui::TextUnformatted(UIStrings::get("sec_1", current_lang).c_str());
+            ImGui::SetNextItemWidth(-130);
+            ImGui::InputText("##path", input_path, sizeof(input_path));
+            ImGui::SameLine();
+            if (ImGui::Button(UIStrings::get("browse", current_lang).c_str(), ImVec2(120, 25))) {
+                std::string selected = openFileDialog();
+                if (!selected.empty()) strncpy(input_path, selected.c_str(), sizeof(input_path) - 1);
             }
+
+            if (ImGui::Button(UIStrings::get("load", current_lang).c_str(), ImVec2(120, 30))) {
+                std::vector<float> tmp;
+                if (pimpl->processor.loadAudio(input_path, 44100, tmp)) {
+                    std::lock_guard<std::mutex> lock(data_mutex);
+                    original_waveform = std::move(tmp);
+                    // Generate Spectrogram
+                    DSPModule::STFTConfig cfg = { 2048, 420, 2048 };
+                    auto stft = DSPModule::extractSTFT(original_waveform, cfg);
+                    original_spectrogram = stft.magnitude;
+                    spec_w = stft.n_frames;
+                    spec_h = stft.n_bins;
+                    addLog(UIStrings::get("log_loaded", current_lang));
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(UIStrings::get("enhance", current_lang).c_str(), ImVec2(150, 30)) && !is_processing) {
+                if (!original_waveform.empty()) processAudio();
+            }
+
+            // Visuals
+            if (ImGui::BeginChild("Visuals", ImVec2(0, 350), false)) {
+                if (!original_waveform.empty()) {
+                    ImGui::TextUnformatted(UIStrings::get("wave_orig", current_lang).c_str());
+                    renderWaveform("##orig_wave", original_waveform, ImVec4(0.4f, 0.6f, 1.0f, 1.0f));
+                    renderSpectrogram("##orig_spec", original_spectrogram, spec_w, spec_h);
+                }
+                if (!enhanced_waveform.empty()) {
+                    ImGui::TextUnformatted(UIStrings::get("wave_enh", current_lang).c_str());
+                    renderWaveform("##enh_wave", enhanced_waveform, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
+                    renderSpectrogram("##enh_spec", enhanced_spectrogram, spec_w, spec_h);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndTabItem();
         }
-        ImGui::SameLine();
-        if (ImGui::Button(UIStrings::get("play_enh", current_lang).c_str(), ImVec2(140, 35))) {
-            std::lock_guard<std::mutex> lock(data_mutex);
-            pimpl->processor.saveAudio("temp_enh.wav", enhanced_waveform, 44100, "wav");
-            #ifdef _WIN32
-            PlaySoundA("temp_enh.wav", NULL, SND_FILENAME | SND_ASYNC);
-            #endif
+
+        // TAB 2: BATCH MODE
+        if (ImGui::BeginTabItem(UIStrings::get("tab_batch", current_lang).c_str())) {
+            is_batch_mode = true;
+            ImGui::Spacing();
+            if (ImGui::Button(UIStrings::get("add_queue", current_lang).c_str(), ImVec2(150, 30))) {
+                std::string selected = openFileDialog();
+                if (!selected.empty()) batch_queue.push_back(selected);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(UIStrings::get("clear_queue", current_lang).c_str(), ImVec2(150, 30))) {
+                batch_queue.clear();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(UIStrings::get("start_batch", current_lang).c_str(), ImVec2(150, 30)) && !is_processing) {
+                if (!batch_queue.empty()) {
+                    std::thread([this]() {
+                        is_processing = true;
+                        auto queue_copy = batch_queue;
+                        for (size_t i = 0; i < queue_copy.size(); ++i) {
+                            addLog("[Batch] Processing (" + std::to_string(i+1) + "/" + std::to_string(queue_copy.size()) + "): " + queue_copy[i]);
+                            std::vector<float> wav, out;
+                            if (pimpl->processor.loadAudio(queue_copy[i], 44100, wav)) {
+                                if (pimpl->enhancer.process(wav, denoise_strength, out, nullptr)) {
+                                    std::string out_name = std::filesystem::path(queue_copy[i]).replace_extension("").string() + "_enhanced.wav";
+                                    pimpl->processor.saveAudio(out_name, out, 44100, "wav");
+                                    addLog("[Batch] Saved: " + out_name);
+                                }
+                            }
+                            progress = (float)(i + 1) / queue_copy.size();
+                        }
+                        is_processing = false;
+                        addLog("[System] Batch Processing Complete!");
+                    }).detach();
+                }
+            }
+
+            ImGui::TextUnformatted(UIStrings::get("sec_batch", current_lang).c_str());
+            ImGui::BeginChild("BatchList", ImVec2(0, 200), true);
+            for (const auto& file : batch_queue) {
+                ImGui::BulletText("%s", std::filesystem::path(file).filename().string().c_str());
+            }
+            ImGui::EndChild();
+            ImGui::EndTabItem();
         }
-        ImGui::SameLine();
-    }
-    
-    if (!original_waveform.empty()) {
-        if (ImGui::Button(UIStrings::get("play_orig", current_lang).c_str(), ImVec2(140, 35))) {
-            std::lock_guard<std::mutex> lock(data_mutex);
-            pimpl->processor.saveAudio("temp_orig.wav", original_waveform, 44100, "wav");
-            #ifdef _WIN32
-            PlaySoundA("temp_orig.wav", NULL, SND_FILENAME | SND_ASYNC);
-            #endif
+
+        // TAB 3: SETTINGS
+        if (ImGui::BeginTabItem("Settings")) {
+            ImGui::Spacing();
+            ImGui::SliderFloat(UIStrings::get("denoise", current_lang).c_str(), &denoise_strength, 0.0f, 1.0f, "%.2f");
+            static int solver_steps = 32;
+            static float tau = 0.5f;
+            if (ImGui::SliderInt(UIStrings::get("steps", current_lang).c_str(), &solver_steps, 16, 128)) pimpl->enhancer.setParameters(solver_steps, tau);
+            if (ImGui::SliderFloat(UIStrings::get("tau", current_lang).c_str(), &tau, 0.0f, 1.0f, "%.2f")) pimpl->enhancer.setParameters(solver_steps, tau);
+
+            ImGui::Separator();
+            if (ImGui::Checkbox(UIStrings::get("gpu_accel", current_lang).c_str(), &use_gpu)) {
+                if (!models_dir.empty()) {
+                    std::thread([this]() {
+                        is_processing = true;
+                        addLog("[System] Reloading Models for Hardware Change...");
+                        pimpl->enhancer.loadModels(models_dir, use_gpu);
+                        is_processing = false;
+                    }).detach();
+                }
+            }
+            ImGui::EndTabItem();
         }
-        ImGui::SameLine();
-        if (ImGui::Button(UIStrings::get("stop", current_lang).c_str(), ImVec2(80, 35))) {
-            #ifdef _WIN32
-            PlaySoundA(NULL, NULL, 0);
-            #endif
-        }
+        ImGui::EndTabBar();
     }
 
-    // 4. Log Section
-    ImGui::Spacing();
-    ImGui::TextUnformatted(UIStrings::get("sec_4", current_lang).c_str());
-    ImGui::SameLine();
-    if (ImGui::Button(UIStrings::get("copy", current_lang).c_str(), ImVec2(100, 20))) {
-        std::string all_logs;
-        {
-            std::lock_guard<std::mutex> lock(log_mutex);
-            for (const auto& l : logs) all_logs += l + "\n";
-        }
-        ImGui::SetClipboardText(all_logs.c_str());
-    }
+    // Bottom Bar
+    ImGui::SetCursorPos(ImVec2(10, ImGui::GetWindowHeight() - 210));
+    ImGui::Separator();
+    if (is_processing) ImGui::ProgressBar(progress, ImVec2(-1, 20));
 
-    ImGui::BeginChild("LogRegion", ImVec2(0, 250), true, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("LogRegion", ImVec2(0, 160), true);
     {
         std::lock_guard<std::mutex> lock(log_mutex);
         for (const auto& l : logs) {
-            if (l.find("[Error]") != std::string::npos)
-                ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), l.c_str());
-            else if (l.find("[System]") != std::string::npos)
-                ImGui::TextColored(ImVec4(0.4f, 1, 0.4f, 1), l.c_str());
-            else
-                ImGui::TextUnformatted(l.c_str());
+            if (l.find("[Error]") != std::string::npos) ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), l.c_str());
+            else if (l.find("[System]") != std::string::npos) ImGui::TextColored(ImVec4(0.4f,1,0.4f,1), l.c_str());
+            else ImGui::TextUnformatted(l.c_str());
         }
-        
-        static int last_log_size = 0;
-        if ((int)logs.size() > last_log_size) {
-            ImGui::SetScrollHereY(1.0f);
-            last_log_size = (int)logs.size();
-        }
+        ImGui::SetScrollHereY(1.0f);
     }
     ImGui::EndChild();
     ImGui::End();
@@ -386,34 +397,24 @@ void GUIManager::processAudio() {
             strength = denoise_strength;
         }
 
-        if (input_copy.empty()) {
-            addLog("[AI] Error: No input audio.");
-            is_processing = false;
-            return;
-        }
-
         std::vector<float> output;
-        try {
-            progress = 0.0f;
-            auto cb = [this](float p) { progress = p; };
-            if (pimpl->enhancer.process(input_copy, strength, output, cb)) {
-                {
-                    std::lock_guard<std::mutex> lock(data_mutex);
-                    enhanced_waveform = std::move(output);
-                }
-                addLog("[AI] Success! Audio enhanced.");
-                pimpl->processor.saveAudio("enhanced_output.wav", enhanced_waveform, 44100, "wav");
-                addLog("[AI] Saved to enhanced_output.wav");
-            } else {
-                addLog("[AI] Processing failed. Check console for details.");
-            }
-        } catch (const std::exception& e) {
-            addLog("[AI] EXCEPTION: " + std::string(e.what()));
-        } catch (...) {
-            addLog("[AI] CRITICAL: Unknown Error.");
-        }
         progress = 0.0f;
+        auto cb = [this](float p) { progress = p; };
+        if (pimpl->enhancer.process(input_copy, strength, output, cb)) {
+            {
+                std::lock_guard<std::mutex> lock(data_mutex);
+                enhanced_waveform = std::move(output);
+                // Update Enhanced Spectrogram
+                DSPModule::STFTConfig cfg = { 2048, 420, 2048 };
+                auto stft = DSPModule::extractSTFT(enhanced_waveform, cfg);
+                enhanced_spectrogram = stft.magnitude;
+            }
+            addLog("[AI] Success!");
+        } else {
+            addLog("[AI] Processing failed.");
+        }
         is_processing = false;
+        progress = 0.0f;
     }).detach();
 }
 

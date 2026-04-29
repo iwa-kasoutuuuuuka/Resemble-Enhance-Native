@@ -1,5 +1,6 @@
 #include "InferenceEngine.hpp"
 #include <onnxruntime_cxx_api.h>
+#include <dml_provider_factory.h>
 #include <iostream>
 #include <numeric>
 
@@ -22,14 +23,17 @@ bool InferenceEngine::loadModel(const std::string& model_path, bool use_gpu) {
         Ort::SessionOptions session_options;
         session_options.SetIntraOpNumThreads(1);
         session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+        
         if (use_gpu) {
             try {
-                // Try CUDA first
-                OrtCUDAProviderOptions cuda_options;
-                session_options.AppendExecutionProvider_CUDA(cuda_options);
-                std::cout << "[Inference] GPU (CUDA) enabled for model: " << model_path << std::endl;
+                // Use DirectML (best compatibility for Windows)
+                // Append DML EP
+                OrtSessionOptionsAppendExecutionProvider_DML(session_options, 0);
+                std::cout << "[Inference] GPU (DirectML) enabled for model: " << model_path << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "[Inference] Warning: Failed to enable DirectML: " << e.what() << ". Falling back to CPU." << std::endl;
             } catch (...) {
-                std::cerr << "[Inference] Warning: Failed to enable GPU. Falling back to CPU." << std::endl;
+                std::cerr << "[Inference] Warning: Failed to enable DirectML. Falling back to CPU." << std::endl;
             }
         }
 
