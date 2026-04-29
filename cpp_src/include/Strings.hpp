@@ -17,12 +17,12 @@ struct UIStrings {
     static std::string get(const std::string& id, Language lang) {
         bool is_jp = (lang == Language::JP);
 
-        if (id == "app_title") return is_jp ? toUTF8(L"RESEMBLE ENHANCE - \u30d7\u30ed\u30d5\u30a7\u30c3\u30b7\u30e7\u30ca\u30eb\u30fb\u30c0\u30c3\u30b7\u30e5\u30dc\u30fc\u30c9") : "RESEMBLE ENHANCE - PROFESSIONAL DASHBOARD";
+        if (id == "app_title") return is_jp ? "RESEMBLE ENHANCE - ULTIMATE AUDIO SUITE" : "RESEMBLE ENHANCE - ULTIMATE AUDIO SUITE";
         if (id == "status_proc") return is_jp ? toUTF8(L"\u51e6\u7406\u4e2d...") : "PROCESSING...";
         if (id == "status_ready") return is_jp ? toUTF8(L"\u30b7\u30b9\u30c6\u30e0\u5f85\u6a5f\u4e2d") : "SYSTEM READY";
         if (id == "sec_1") return is_jp ? toUTF8(L"1. \u5165\u529b\u30bd\u30fc\u30b9") : "1. Input Audio Source";
         if (id == "browse") return is_jp ? toUTF8(L"\u53c2\u7167...") : "BROWSE...";
-        if (id == "tip_dd") return is_jp ? toUTF8(L"(\u30d2\u30f3\u30c8: .wav\u30d5\u30a1\u30a4\u30eb\u3092\u30c9\u30e9\u30c3\u30b0\uff06\u30c9\u30ed\u30c3\u30d7\u3067\u304d\u307e\u3059)") : "(Tip: You can drag and drop a .wav file here)";
+        if (id == "tip_dd") return is_jp ? toUTF8(L"(\u30d2\u30f3\u30c8: .wav\u30d5\u30a1\u30a4\u30eb\u3092\u30c9\u30e9\u30c3\u30b0\uff06\u30c9\u30ed\u30c3\u30d7\u3067\u304d\u307e\u3059)") : "(Tip: You can drag and drop audio files here)";
         if (id == "sec_2") return is_jp ? toUTF8(L"2. AI\u30d1\u30e9\u30e1\u30fc\u30bf\u8a2d\u5b9a") : "2. AI Parameters & Configuration";
         if (id == "denoise") return is_jp ? toUTF8(L"\u30ce\u30a4\u30ba\u9664\u53bb\u5f37\u5ea6") : "Denoise Strength";
         if (id == "steps") return is_jp ? toUTF8(L"\u63a8\u8ad6\u30b9\u30c6\u30c3\u30d7\u6570") : "Solver Steps";
@@ -50,6 +50,13 @@ struct UIStrings {
         if (id == "device_cpu") return is_jp ? toUTF8(L"\u30c7\u30d0\u30a4\u30b9: CPU") : "Device: CPU";
         if (id == "device_gpu") return is_jp ? toUTF8(L"\u30c7\u30d0\u30a4\u30b9: GPU") : "Device: GPU";
         if (id == "sec_batch") return is_jp ? toUTF8(L"\u4e00\u62ec\u51e6\u7406\u30ea\u30b9\u30c8") : "Batch List";
+        if (id == "tab_live") return is_jp ? toUTF8(L"\u30e9\u30a4\u30d6\u30e2\u30cb\u30bf\u30fc") : "Live Monitor";
+        if (id == "start_mon") return is_jp ? toUTF8(L"\u30e2\u30cb\u30bf\u30fc\u958b\u59cb") : "Start Monitoring";
+        if (id == "stop_mon") return is_jp ? toUTF8(L"\u30e2\u30cb\u30bf\u30fc\u505c\u6b62") : "Stop Monitoring";
+        if (id == "mon_desc") return is_jp ? toUTF8(L"\u30de\u30a4\u30af\u97f3\u58f0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067AI\u51e6\u7406\u3057\u307e\u3059 (\u4f4e\u9045\u5ef6\u30e2\u30fc\u30c9)") : "AI Enhance mic input in real-time (Low Latency Mode)";
+        if (id == "setup_btn") return is_jp ? toUTF8(L"AI\u30e2\u30c7\u30eb\u3092\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7") : "Setup AI Models";
+        if (id == "fmt_wav") return is_jp ? toUTF8(L"WAV\u5f62\u5f0f") : "WAV Format";
+        if (id == "fmt_mp3") return is_jp ? toUTF8(L"MP3\u5f62\u5f0f") : "MP3 Format";
         if (id == "lang_btn") return is_jp ? "English" : toUTF8(L"\u65e5\u672c\u8a9e");
 
         return "???";

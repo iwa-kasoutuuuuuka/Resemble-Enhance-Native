@@ -19,6 +19,11 @@ public:
     void run();
     void cleanup();
     void addLog(const std::string& msg); // Moved to public
+    
+    // Public for callbacks
+    std::atomic<bool> is_monitoring{false};
+    std::vector<float> mic_visual_buffer;
+    std::mutex data_mutex;
 
 private:
     Language current_lang = Language::JP;
@@ -49,7 +54,6 @@ private:
     int spec_w = 0, spec_h = 0;
     
     std::vector<std::string> batch_queue;
-    std::mutex data_mutex;
     
     // Log
     std::vector<std::string> logs;

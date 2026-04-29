@@ -76,4 +76,8 @@ add_custom_command(TARGET ResembleDebugV60 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${DML_DIR}/bin/x64-win/DirectML.dll"
         $<TARGET_FILE_DIR:ResembleDebugV60>
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:ResembleDebugV60>/bin
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "f:/antigravity/cpp_src/bin/ffmpeg.exe"
+        $<TARGET_FILE_DIR:ResembleDebugV60>/bin/
 )

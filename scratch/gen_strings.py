@@ -3,11 +3,16 @@ import sys
 def to_ucn(text):
     return "".join(f"\\u{ord(c):04x}" if ord(c) > 127 else c for c in text)
 
+def safe_str(text, is_jp):
+    ucn = to_ucn(text)
+    if ucn == text: # pure ascii
+        return f"\"{text}\""
+    return f"toUTF8(L\"{ucn}\")"
+
 data = {
-    "app_title": "RESEMBLE ENHANCE - プロフェッショナル・ダッシュボード",
+    "app_title": "RESEMBLE ENHANCE - ULTIMATE AUDIO SUITE",
     "status_proc": "処理中...",
     "status_ready": "システム待機中",
-    "lang_btn_jp": "日本語",
     "sec_1": "1. 入力ソース",
     "browse": "参照...",
     "tip_dd": "(ヒント: .wavファイルをドラッグ＆ドロップできます)",
@@ -29,7 +34,6 @@ data = {
     "log_loaded": "[System] 音声を読み込みました。",
     "log_err_load": "[Error] 音声ファイルを先に読み込んでください。",
     "log_saved": "[System] ファイルを保存しました。",
-    # New keys for Ultimate version
     "tab_single": "単体ファイル",
     "tab_batch": "一括処理",
     "gpu_accel": "GPU 加速 (DirectML)",
@@ -38,16 +42,23 @@ data = {
     "start_batch": "一括処理開始",
     "device_cpu": "デバイス: CPU",
     "device_gpu": "デバイス: GPU",
-    "sec_batch": "一括処理リスト"
+    "sec_batch": "一括処理リスト",
+    "tab_live": "ライブモニター",
+    "start_mon": "モニター開始",
+    "stop_mon": "モニター停止",
+    "mon_desc": "マイク音声をリアルタイムでAI処理します (低遅延モード)",
+    "setup_btn": "AIモデルをセットアップ",
+    "fmt_wav": "WAV形式",
+    "fmt_mp3": "MP3形式"
 }
 
 en_map = {
-    "app_title": "RESEMBLE ENHANCE - PROFESSIONAL DASHBOARD",
+    "app_title": "RESEMBLE ENHANCE - ULTIMATE AUDIO SUITE",
     "status_proc": "PROCESSING...",
     "status_ready": "SYSTEM READY",
     "sec_1": "1. Input Audio Source",
     "browse": "BROWSE...",
-    "tip_dd": "(Tip: You can drag and drop a .wav file here)",
+    "tip_dd": "(Tip: You can drag and drop audio files here)",
     "sec_2": "2. AI Parameters & Configuration",
     "denoise": "Denoise Strength",
     "steps": "Solver Steps",
@@ -74,7 +85,14 @@ en_map = {
     "start_batch": "Start Batch",
     "device_cpu": "Device: CPU",
     "device_gpu": "Device: GPU",
-    "sec_batch": "Batch List"
+    "sec_batch": "Batch List",
+    "tab_live": "Live Monitor",
+    "start_mon": "Start Monitoring",
+    "stop_mon": "Stop Monitoring",
+    "mon_desc": "AI Enhance mic input in real-time (Low Latency Mode)",
+    "setup_btn": "Setup AI Models",
+    "fmt_wav": "WAV Format",
+    "fmt_mp3": "MP3 Format"
 }
 
 output = []
@@ -99,12 +117,12 @@ output.append("        bool is_jp = (lang == Language::JP);")
 output.append("")
 
 for key, val in data.items():
-    if key == "lang_btn_jp": continue
     en_val = en_map.get(key, val)
-    jp_ucn = to_ucn(val)
-    output.append(f"        if (id == \"{key}\") return is_jp ? toUTF8(L\"{jp_ucn}\") : \"{en_val}\";")
+    jp_s = safe_str(val, True)
+    en_s = safe_str(en_val, False)
+    output.append(f"        if (id == \"{key}\") return is_jp ? {jp_s} : {en_s};")
 
-output.append("        if (id == \"lang_btn\") return is_jp ? \"English\" : toUTF8(L\"" + to_ucn("日本語") + "\");")
+output.append("        if (id == \"lang_btn\") return is_jp ? \"English\" : " + safe_str("日本語", True) + ";")
 output.append("")
 output.append("        return \"???\";")
 output.append("    }")
